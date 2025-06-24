@@ -6,15 +6,19 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Info, Plus, Trash2, ChevronLeft, Search } from "lucide-react"
+import { Info, Plus, Trash2, ChevronLeft, Search, X } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { motion, AnimatePresence } from "framer-motion"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 
+interface NodeData {
+  [key: string]: string
+}
+
 interface Node {
-  value: string
+  value: string | NodeData
   id: string
 }
 
@@ -31,6 +35,8 @@ export default function SinglyLinkedListVisualizer() {
   const [searchValue, setSearchValue] = useState("")
   const [error, setError] = useState("")
   const [insertPosition, setInsertPosition] = useState("end")
+  const [inputType, setInputType] = useState("single")
+  const [structuredFields, setStructuredFields] = useState<{ key: string; value: string }[]>([{ key: "", value: "" }])
   const [animation, setAnimation] = useState<AnimationStep>({
     type: "none",
     currentIndex: -1,
@@ -45,14 +51,47 @@ export default function SinglyLinkedListVisualizer() {
     }
   }, [])
 
+  const addStructuredField = () => {
+    setStructuredFields([...structuredFields, { key: "", value: "" }])
+  }
+
+  const removeStructuredField = (index: number) => {
+    if (structuredFields.length > 1) {
+      setStructuredFields(structuredFields.filter((_, i) => i !== index))
+    }
+  }
+
+  const updateStructuredField = (index: number, field: "key" | "value", newValue: string) => {
+    const updated = [...structuredFields]
+    updated[index][field] = newValue
+    setStructuredFields(updated)
+  }
+
   const handleInsert = () => {
-    if (!inputValue.trim()) {
-      setError("Please enter a value to insert")
-      return
+    let nodeValue: string | NodeData
+
+    if (inputType === "single") {
+      if (!inputValue.trim()) {
+        setError("Please enter a value to insert")
+        return
+      }
+      nodeValue = inputValue
+    } else {
+      const validFields = structuredFields.filter((field) => field.key.trim() && field.value.trim())
+      if (validFields.length === 0) {
+        setError("Please enter at least one key-value pair")
+        return
+      }
+
+      const structuredData: NodeData = {}
+      validFields.forEach((field) => {
+        structuredData[field.key.trim()] = field.value.trim()
+      })
+      nodeValue = structuredData
     }
 
     const newNode = {
-      value: inputValue,
+      value: nodeValue,
       id: `node-${Date.now()}`,
     }
 
@@ -75,7 +114,11 @@ export default function SinglyLinkedListVisualizer() {
         setNodes([...nodes, newNode])
       }
 
-      setInputValue("")
+      if (inputType === "single") {
+        setInputValue("")
+      } else {
+        setStructuredFields([{ key: "", value: "" }])
+      }
       setError("")
 
       // Complete animation after a delay
@@ -135,8 +178,23 @@ export default function SinglyLinkedListVisualizer() {
       return
     }
 
-    const index = nodes.findIndex((node) => node.value === searchValue)
-    if (index === -1) {
+    let indexToDelete = -1
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i]
+      if (typeof node.value === "string") {
+        if (node.value === searchValue) {
+          indexToDelete = i
+          break // Delete only the first occurrence
+        }
+      } else {
+        if (Object.values(node.value).some((val) => val === searchValue)) {
+          indexToDelete = i
+          break // Delete only the first occurrence
+        }
+      }
+    }
+
+    if (indexToDelete === -1) {
       setError(`Value "${searchValue}" not found in the linked list`)
       return
     }
@@ -152,13 +210,13 @@ export default function SinglyLinkedListVisualizer() {
     // Animate traversal through the list
     let currentIndex = 0
     const traverseInterval = setInterval(() => {
-      if (currentIndex < index) {
+      if (currentIndex < indexToDelete) {
         currentIndex++
         setAnimation({
           type: "delete",
           currentIndex,
           message:
-            currentIndex === index
+            currentIndex === indexToDelete
               ? "Found node to delete! Updating pointers..."
               : `Traversing node ${currentIndex + 1}/${nodes.length}`,
           complete: false,
@@ -169,7 +227,7 @@ export default function SinglyLinkedListVisualizer() {
         // Delete the node after finding it
         setTimeout(() => {
           const newNodes = [...nodes]
-          newNodes.splice(index, 1)
+          newNodes.splice(indexToDelete, 1)
           setNodes(newNodes)
           setSearchValue("")
 
@@ -205,7 +263,12 @@ export default function SinglyLinkedListVisualizer() {
     let currentIndex = 0
     const traverseInterval = setInterval(() => {
       if (currentIndex < nodes.length) {
-        if (nodes[currentIndex].value === searchValue) {
+        const nodeMatches =
+          typeof nodes[currentIndex].value === "string"
+            ? nodes[currentIndex].value === searchValue
+            : Object.values(nodes[currentIndex].value as NodeData).some((val) => val === searchValue)
+
+        if (nodeMatches) {
           clearInterval(traverseInterval)
           setAnimation({
             type: "search",
@@ -268,6 +331,23 @@ export default function SinglyLinkedListVisualizer() {
     }
   }
 
+  const renderNodeContent = (node: Node) => {
+    if (typeof node.value === "string") {
+      return <div className="font-mono text-center">{node.value}</div>
+    } else {
+      return (
+        <div className="text-xs space-y-1">
+          {Object.entries(node.value).map(([key, value]) => (
+            <div key={key} className="flex justify-between">
+              <span className="font-semibold text-blue-600">{key}:</span>
+              <span className="font-mono">{value}</span>
+            </div>
+          ))}
+        </div>
+      )
+    }
+  }
+
   return (
     <div className="container mx-auto py-10 px-4">
       <div className="max-w-4xl mx-auto space-y-8">
@@ -289,20 +369,71 @@ export default function SinglyLinkedListVisualizer() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-4">
-                <div className="flex space-x-2">
-                  <Input
-                    ref={inputRef}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Enter a value"
-                    className="flex-1"
-                  />
-                  <Button onClick={handleInsert} className="flex items-center gap-1">
-                    <Plus className="h-4 w-4" />
-                    Insert
-                  </Button>
-                </div>
+                <RadioGroup
+                  defaultValue="single"
+                  className="flex space-x-4"
+                  onValueChange={(value) => setInputType(value)}
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="single" id="single" />
+                    <Label htmlFor="single">Single Value</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="structured" id="structured" />
+                    <Label htmlFor="structured">Structured Data</Label>
+                  </div>
+                </RadioGroup>
+
+                {inputType === "single" ? (
+                  <div className="flex space-x-2">
+                    <Input
+                      ref={inputRef}
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Enter a value"
+                      className="flex-1"
+                    />
+                    <Button onClick={handleInsert} className="flex items-center gap-1">
+                      <Plus className="h-4 w-4" />
+                      Insert
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-sm font-medium">Add structured data:</div>
+                    {structuredFields.map((field, index) => (
+                      <div key={index} className="flex space-x-2 items-center">
+                        <Input
+                          value={field.key}
+                          onChange={(e) => updateStructuredField(index, "key", e.target.value)}
+                          placeholder="Key (e.g., emp_id)"
+                          className="flex-1"
+                        />
+                        <Input
+                          value={field.value}
+                          onChange={(e) => updateStructuredField(index, "value", e.target.value)}
+                          placeholder="Value (e.g., 125)"
+                          className="flex-1"
+                        />
+                        {structuredFields.length > 1 && (
+                          <Button variant="outline" size="icon" onClick={() => removeStructuredField(index)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <div className="flex space-x-2">
+                      <Button variant="outline" onClick={addStructuredField} className="flex-1">
+                        Add Field
+                      </Button>
+                      <Button onClick={handleInsert} className="flex items-center gap-1">
+                        <Plus className="h-4 w-4" />
+                        Insert Node
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 <RadioGroup
                   defaultValue="end"
@@ -383,7 +514,7 @@ export default function SinglyLinkedListVisualizer() {
               <CardDescription>Nodes connected in a linear sequence</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="border rounded-lg p-4 h-[400px] flex flex-col justify-center items-center overflow-auto visualization-bg relative">
+              <div className="border rounded-lg p-4 h-[400px] flex flex-col justify-center items-center overflow-auto bg-muted/30 relative">
                 {nodes.length === 0 && (
                   <div className="text-muted-foreground absolute inset-0 flex items-center justify-center">
                     Linked list is empty
@@ -391,7 +522,7 @@ export default function SinglyLinkedListVisualizer() {
                 )}
 
                 {animation.message && (
-                  <div className="absolute top-2 left-0 right-0 bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 p-2 text-sm text-center">
+                  <div className="absolute top-2 left-0 right-0 bg-blue-100 text-blue-800 p-2 text-sm text-center">
                     {animation.message}
                   </div>
                 )}
@@ -415,20 +546,20 @@ export default function SinglyLinkedListVisualizer() {
                         >
                           <div className="flex flex-col items-center">
                             <div
-                              className={`w-24 h-24 border-2 rounded-lg flex flex-col items-center justify-center bg-card shadow-sm
+                              className={`min-w-[120px] min-h-[100px] border-2 rounded-lg flex flex-col items-center justify-center bg-card shadow-sm p-3
                                 ${
                                   animation.currentIndex === index
                                     ? animation.type === "search"
-                                      ? "border-yellow-500 bg-yellow-50 dark:bg-yellow-900/30"
+                                      ? "border-yellow-500 bg-yellow-50"
                                       : animation.type === "delete"
-                                        ? "border-red-500 bg-red-50 dark:bg-red-900/30"
-                                        : "border-green-500 bg-green-50 dark:bg-green-900/30"
+                                        ? "border-red-500 bg-red-50"
+                                        : "border-green-500 bg-green-50"
                                     : ""
                                 }`}
                             >
-                              <div className="font-mono mb-2">{node.value}</div>
-                              <div className="w-16 h-6 border rounded-md bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
-                                <span className="text-xs text-blue-600 dark:text-blue-300">next</span>
+                              {renderNodeContent(node)}
+                              <div className="w-16 h-6 border rounded-md bg-blue-50 flex items-center justify-center mt-2">
+                                <span className="text-xs text-blue-600">next</span>
                               </div>
                             </div>
                             {index === 0 && <span className="text-xs mt-2">Head</span>}
