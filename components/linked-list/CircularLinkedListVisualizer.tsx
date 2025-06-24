@@ -6,15 +6,20 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Info, Plus, Trash2, ChevronLeft, RefreshCw, Search } from "lucide-react"
+import { Info, Plus, Trash2, ChevronLeft, RefreshCw, Search, X } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { motion } from "framer-motion"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 
-interface Node {
+interface NodeData {
+  key: string
   value: string
+}
+
+interface Node {
+  data: NodeData[]
   id: string
 }
 
@@ -25,6 +30,8 @@ export default function CircularLinkedListVisualizer() {
   const [insertPosition, setInsertPosition] = useState("end")
   const inputRef = useRef<HTMLInputElement>(null)
   const [searchValue, setSearchValue] = useState("")
+  const [dataType, setDataType] = useState("single")
+  const [structuredDataFields, setStructuredDataFields] = useState<NodeData[]>([{ key: "", value: "" }])
 
   useEffect(() => {
     if (inputRef.current) {
@@ -32,25 +39,63 @@ export default function CircularLinkedListVisualizer() {
     }
   }, [])
 
+  const addStructuredField = () => {
+    setStructuredDataFields([...structuredDataFields, { key: "", value: "" }])
+  }
+
+  const removeStructuredField = (index: number) => {
+    const newFields = [...structuredDataFields]
+    newFields.splice(index, 1)
+    setStructuredDataFields(newFields)
+  }
+
+  const updateStructuredField = (index: number, field: "key" | "value", value: string) => {
+    const newFields = [...structuredDataFields]
+    newFields[index] = { ...newFields[index], [field]: value }
+    setStructuredDataFields(newFields)
+  }
+
   const handleInsert = () => {
-    if (!inputValue.trim()) {
-      setError("Please enter a value to insert")
-      return
-    }
+    if (dataType === "single") {
+      if (!inputValue.trim()) {
+        setError("Please enter a value to insert")
+        return
+      }
 
-    const newNode = {
-      value: inputValue,
-      id: `node-${Date.now()}`,
-    }
+      const newNode = {
+        data: [{ key: "value", value: inputValue }],
+        id: `node-${Date.now()}`,
+      }
 
-    if (insertPosition === "beginning") {
-      setNodes([newNode, ...nodes])
+      if (insertPosition === "beginning") {
+        setNodes([newNode, ...nodes])
+      } else {
+        setNodes([...nodes, newNode])
+      }
+
+      setInputValue("")
+      setError("")
     } else {
-      setNodes([...nodes, newNode])
-    }
+      // Structured data insertion
+      if (structuredDataFields.some((field) => !field.key.trim() || !field.value.trim())) {
+        setError("Please ensure all fields in structured data are filled.")
+        return
+      }
 
-    setInputValue("")
-    setError("")
+      const newNode = {
+        data: structuredDataFields,
+        id: `node-${Date.now()}`,
+      }
+
+      if (insertPosition === "beginning") {
+        setNodes([newNode, ...nodes])
+      } else {
+        setNodes([...nodes, newNode])
+      }
+
+      setStructuredDataFields([{ key: "", value: "" }]) // Reset fields
+      setError("")
+    }
   }
 
   const handleDelete = (position: "beginning" | "end") => {
@@ -74,7 +119,8 @@ export default function CircularLinkedListVisualizer() {
       return
     }
 
-    const index = nodes.findIndex((node) => node.value === searchValue)
+    const index = nodes.findIndex((node) => node.data.some((item) => item.value === searchValue))
+
     if (index === -1) {
       setError(`Value "${searchValue}" not found in the linked list`)
       return
@@ -93,7 +139,7 @@ export default function CircularLinkedListVisualizer() {
       return
     }
 
-    const index = nodes.findIndex((node) => node.value === searchValue)
+    const index = nodes.findIndex((node) => node.data.some((item) => item.value === searchValue))
     if (index === -1) {
       setError(`Value "${searchValue}" not found in the linked list`)
     } else {
@@ -113,10 +159,32 @@ export default function CircularLinkedListVisualizer() {
     }
   }
 
+  const renderNodeContent = (node: Node) => {
+    if (dataType === "single") {
+      return <div className="font-mono">{node.data[0].value}</div>
+    } else {
+      return (
+        <div>
+          {node.data.map((item, index) => (
+            <div key={index} className="text-sm">
+              <span className="font-semibold">{item.key}:</span> {item.value}
+            </div>
+          ))}
+        </div>
+      )
+    }
+  }
+
   return (
     <div className="container mx-auto py-10 px-4">
       <div className="max-w-4xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
+          <Link href="/linked-list">
+            <Button variant="ghost" size="sm" className="flex items-center gap-1">
+              <ChevronLeft className="h-4 w-4" />
+              Back to Linked List Types
+            </Button>
+          </Link>
           <div className="text-center space-y-1 flex-1">
             <h1 className="text-3xl font-bold">Circular Linked List Visualizer</h1>
             <p className="text-muted-foreground">
@@ -133,37 +201,84 @@ export default function CircularLinkedListVisualizer() {
               <CardDescription>Insert and delete nodes from the circular linked list</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-4">
-                <div className="flex space-x-2">
-                  <Input
-                    ref={inputRef}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Enter a value"
-                    className="flex-1"
-                  />
+              <RadioGroup onValueChange={(value) => setDataType(value)} defaultValue="single" className="mb-4">
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="single" id="single" />
+                  <Label htmlFor="single">Single Value</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="structured" id="structured" />
+                  <Label htmlFor="structured">Structured Data</Label>
+                </div>
+              </RadioGroup>
+
+              {dataType === "single" ? (
+                <div className="space-y-4">
+                  <div className="flex space-x-2">
+                    <Input
+                      ref={inputRef}
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Enter a value"
+                      className="flex-1"
+                    />
+                    <Button onClick={handleInsert} className="flex items-center gap-1">
+                      <Plus className="h-4 w-4" />
+                      Insert
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {structuredDataFields.map((field, index) => (
+                    <div key={index} className="flex space-x-2 items-center">
+                      <Input
+                        placeholder="Key"
+                        value={field.key}
+                        onChange={(e) => updateStructuredField(index, "key", e.target.value)}
+                      />
+                      <Input
+                        placeholder="Value"
+                        value={field.value}
+                        onChange={(e) => updateStructuredField(index, "value", e.target.value)}
+                      />
+                      {structuredDataFields.length > 1 ? (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => removeStructuredField(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </div>
+                  ))}
+                  <Button type="button" variant="secondary" onClick={addStructuredField}>
+                    Add Field
+                  </Button>
                   <Button onClick={handleInsert} className="flex items-center gap-1">
                     <Plus className="h-4 w-4" />
                     Insert
                   </Button>
                 </div>
+              )}
 
-                <RadioGroup
-                  defaultValue="end"
-                  className="flex space-x-4"
-                  onValueChange={(value) => setInsertPosition(value)}
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="beginning" id="beginning" />
-                    <Label htmlFor="beginning">At Beginning</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="end" id="end" />
-                    <Label htmlFor="end">At End</Label>
-                  </div>
-                </RadioGroup>
-              </div>
+              <RadioGroup
+                defaultValue="end"
+                className="flex space-x-4"
+                onValueChange={(value) => setInsertPosition(value)}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="beginning" id="beginning" />
+                  <Label htmlFor="beginning">At Beginning</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="end" id="end" />
+                  <Label htmlFor="end">At End</Label>
+                </div>
+              </RadioGroup>
 
               <div className="flex space-x-2">
                 <Button
@@ -259,7 +374,7 @@ export default function CircularLinkedListVisualizer() {
                           }}
                         >
                           <div className="w-24 h-24 border-2 rounded-lg flex flex-col items-center justify-center bg-card shadow-sm">
-                            <div className="font-mono mb-2">{node.value}</div>
+                            {renderNodeContent(node)}
                             <div className="w-16 h-6 border rounded-md bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
                               <span className="text-xs text-blue-600 dark:text-blue-300">next</span>
                             </div>
