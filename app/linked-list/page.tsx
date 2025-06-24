@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, Suspense } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,6 +12,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
+
+import dynamic from "next/dynamic"
+
+const SinglyLinkedListVisualizer = dynamic(() => import("@/components/linked-list/SinglyLinkedListVisualizer"), { ssr: false })
+const DoublyLinkedListVisualizer = dynamic(() => import("@/components/linked-list/DoublyLinkedListVisualizer"), { ssr: false })
+const CircularLinkedListVisualizer = dynamic(() => import("@/components/linked-list/CircularLinkedListVisualizer"), { ssr: false })
+
+
 
 interface Node {
   value: string
@@ -85,143 +93,26 @@ export default function LinkedListVisualizer() {
         <Tabs defaultValue="singly" className="w-full" onValueChange={setListType}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="singly">Singly Linked List</TabsTrigger>
-            <TabsTrigger value="doubly" disabled>
-              Doubly Linked List (Planned)
-            </TabsTrigger>
-            <TabsTrigger value="circular" disabled>
-              Circular Linked List (Planned)
-            </TabsTrigger>
+            <TabsTrigger value="doubly">Doubly Linked List</TabsTrigger>
+            <TabsTrigger value="circular">Circular Linked List</TabsTrigger>
           </TabsList>
-          <TabsContent value="singly" className="mt-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Operations</CardTitle>
-                  <CardDescription>Insert and delete nodes from the linked list</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-4">
-                    <div className="flex space-x-2">
-                      <Input
-                        ref={inputRef}
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Enter a value"
-                        className="flex-1"
-                      />
-                      <Button onClick={handleInsert} className="flex items-center gap-1">
-                        <Plus className="h-4 w-4" />
-                        Insert
-                      </Button>
-                    </div>
 
-                    <RadioGroup
-                      defaultValue="end"
-                      className="flex space-x-4"
-                      onValueChange={(value) => setInsertPosition(value)}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="beginning" id="beginning" />
-                        <Label htmlFor="beginning">At Beginning</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="end" id="end" />
-                        <Label htmlFor="end">At End</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
+          <TabsContent value="singly">
+            <Suspense fallback={<p className="text-center py-10">Loading Singly Linked List...</p>}>
+              <SinglyLinkedListVisualizer />
+            </Suspense>
+          </TabsContent>
 
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={() => handleDelete("beginning")}
-                      variant="outline"
-                      className="flex-1 flex items-center gap-1"
-                      disabled={nodes.length === 0}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete First
-                    </Button>
-                    <Button
-                      onClick={() => handleDelete("end")}
-                      variant="outline"
-                      className="flex-1 flex items-center gap-1"
-                      disabled={nodes.length === 0}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete Last
-                    </Button>
-                  </div>
+          <TabsContent value="doubly">
+            <Suspense fallback={<p className="text-center py-10">Loading Doubly Linked List...</p>}>
+              <DoublyLinkedListVisualizer />
+            </Suspense>
+          </TabsContent>
 
-                  {error && (
-                    <Alert variant="destructive">
-                      <Info className="h-4 w-4" />
-                      <AlertTitle>Error</AlertTitle>
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Visualization</CardTitle>
-                  <CardDescription>Nodes connected in a linear sequence</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="border rounded-lg p-4 h-[400px] flex flex-col justify-center items-center overflow-hidden bg-muted/30 relative">
-                    {nodes.length === 0 && (
-                      <div className="text-muted-foreground absolute inset-0 flex items-center justify-center">
-                        Linked list is empty
-                      </div>
-                    )}
-
-                    <div className="w-full overflow-x-auto">
-                      <div className="flex items-center min-w-max p-4">
-                        <AnimatePresence>
-                          {nodes.map((node, index) => (
-                            <motion.div
-                              key={node.id}
-                              initial={{ opacity: 0, y: 20 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.8 }}
-                              transition={{ duration: 0.3 }}
-                              className="flex items-center"
-                            >
-                              <div className="flex flex-col items-center">
-                                <div className="w-20 h-20 border-2 rounded-lg flex items-center justify-center bg-card">
-                                  <span className="font-mono">{node.value}</span>
-                                </div>
-                                {index === 0 && <span className="text-xs mt-2">Head</span>}
-                                {index === nodes.length - 1 && <span className="text-xs mt-2">Tail</span>}
-                              </div>
-
-                              {index < nodes.length - 1 && (
-                                <motion.div
-                                  initial={{ width: 0 }}
-                                  animate={{ width: 40 }}
-                                  className="mx-2 flex items-center justify-center"
-                                >
-                                  <div className="h-0.5 bg-primary flex-1"></div>
-                                  <ArrowRight className="h-4 w-4 text-primary" />
-                                </motion.div>
-                              )}
-
-                              {index === nodes.length - 1 && (
-                                <div className="ml-2 flex items-center">
-                                  <div className="h-0.5 w-8 bg-muted"></div>
-                                  <div className="border rounded px-2 py-1 text-xs text-muted-foreground">null</div>
-                                </div>
-                              )}
-                            </motion.div>
-                          ))}
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+          <TabsContent value="circular">
+            <Suspense fallback={<p className="text-center py-10">Loading Circular Linked List...</p>}>
+              <CircularLinkedListVisualizer />
+            </Suspense>
           </TabsContent>
         </Tabs>
 
