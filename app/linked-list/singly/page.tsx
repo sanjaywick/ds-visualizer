@@ -272,12 +272,6 @@ export default function SinglyLinkedListVisualizer() {
     <div className="container mx-auto py-10 px-4">
       <div className="max-w-4xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
-          <Link href="/linked-list">
-            <Button variant="ghost" size="sm" className="flex items-center gap-1">
-              <ChevronLeft className="h-4 w-4" />
-              Back to Linked List Types
-            </Button>
-          </Link>
           <div className="text-center space-y-1 flex-1">
             <h1 className="text-3xl font-bold">Singly Linked List Visualizer</h1>
             <p className="text-muted-foreground">
